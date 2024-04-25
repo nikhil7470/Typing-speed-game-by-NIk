@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Typing Speed Game</title>
+    <style>
+      body {
+        background-color: #1e335e;
+        font-family: "Arial", sans-serif;
+        text-align: center;
+        color: #fff;
+        margin: 0;
+        padding: 0;
+      }
+      h1 {
+        font-size: 36px;
+        margin-top: 20px;
+      }
+      #game-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+      }
+      #target {
+        font-size: 36px;
+        margin-top: 20px;
+      }
+      #timer {
+        font-size: 28px;
+        margin: 20px 0;
+      }
+      #score {
+        font-size: 28px;
+        margin: 20px 0;
+      }
+      #message {
+        font-size: 36px;
+      }
+      #input {
+        font-size: 24px;
+        padding: 15px;
+        margin: 20px;
+        border: 2px solid #fff;
+        border-radius: 10px;
+        background-color: #1e335e;
+        color: #fff;
+      }
+      #startButton,
+      #restartButton {
+        font-size: 24px;
+        padding: 15px 30px;
+        margin: 20px 0;
+        background-color: #ff5733;
+        color: #fff;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: background-color 0.3s;
+      }
+      #startButton:hover,
+      #restartButton:hover {
+        background-color: #ff7f3d;
+      }
+
+      #notifications {
+        height: auto; /* Remove fixed height */
+        position: fixed; /* Position it on the screen */
+        top: 10px; /* Example: Adjust as needed */
+        right: 10px;
+        background-color: rgba(0, 0, 0, 0.7); /* Semi-transparent background */
+        color: white;
+        padding: 10px;
+        border-radius: 5px;
+        font-size: small;
+      }
+
+      #notifications.active {
+        display: block; /* Show when active */
+        animation: slideIn 0.5s ease;
+      }
+
+      @keyframes slideIn {
+        from {
+          transform: translateX(100%);
+        }
+        to {
+          transform: translateX(0);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Typing Speed Game</h1>
+    <div id="scores-container">
+      <h2>Scores:</h2>
+    </div>
+    <div id="notifications"></div>
+    <h1>Server Console Log Data</h1>
+    <div id="console-log-container"></div>
+
+
+    <div id="game-container">
+      <div id="particles-js"></div>
+      <div id="target">Type this text: <span></span></div>
+      <input type="text" id="input" autofocus />
+      <div id="timer">Time: <span></span></div>
+      <div id="score">Score: <span>0</span></div>
+      <div id="message"></div>
+      <button id="startButton">Start Game</button>
+      <button id="restartButton" style="display: none">Restart Game</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+
+    <!--       
+    <audio id="correctSound" src="correct.mp3"></audio>
+    <audio id="incorrectSound" src="incorrect.mp3"></audio> -->
+    <script>
+      particlesJS("particles-js", {
+        particles: {
+          number: { value: 80, density: { enable: true, value_area: 800 } },
+          color: { value: "#ffffff" },
+          shape: { type: "circle" },
+          opacity: { value: 0.5, random: false },
+          size: { value: 3, random: true },
+          move: {
+            enable: true,
+            speed: 2,
+            direction: "top",
+            random: false,
+            straight: true,
+            out_mode: "out",
+          },
+          line_linked: { enable: false },
+        },
+        interactivity: {
+          detect_on: "canvas",
+          events: {
+            onhover: { enable: true, mode: "repulse" },
+          },
+        },
+      });
+
+      // const correctSound = document.getElementById("correctSound");
+      // const incorrectSound = document.getElementById("incorrectSound");
+
+      let roomName = null;
+      let targetText = "";
+      let timer;
+      let timeLimit = 130;
+      let score = 0;
+      let gameActive = false;
+
+      const targetElement = document.querySelector("#target span");
+      const inputElement = document.getElementById("input");
+      const timerElement = document.querySelector("#timer span");
+      const scoreElement = document.querySelector("#score span");
+      const messageElement = document.getElementById("message");
+      const startButton = document.getElementById("startButton");
+      const restartButton = document.getElementById("restartButton");
+      const playerName = prompt("Enter your name:");
+
+      socket.on('startGame', () => {
+    startGame();  // Update your existing startGame function to handle this
+});
+
+      function startGame() {
+        if (!gameActive) {
+          gameActive = true;
+          startButton.disabled = true;
+          restartButton.style.display = "none";
+          score = 0;
+          updateScore();
+          startTimer();
+          messageElement.textContent = "";
+          setRandomTarget();
+          socket.emit("joinGame", { preferredRoomName: null });
+        }
+      }
+
+      function endGame() {
+        gameActive = false;
+        startButton.disabled = false;
+        restartButton.style.display = "block";
+        clearTimeout(timer);
+        messageElement.textContent = `Game Over! Your final score is ${score}`;
+        socket.leave(roomName); 
+
+        // If you need to reset the score, do it after leaving the room:
+        score = 0; 
+       updateScore(); 
+
+      }
+
+      function startTimer() {
+        let time = timeLimit;
+        updateTimer(time);
+        timer = setInterval(() => {
+          time--;
+          updateTimer(time);
+          if (time === 0) {
+            endGame();
+          }
+        }, 1000);
+      }
+
+      function displayNotification(message) {
+        const notifications = document.getElementById("notifications");
+        const newNotification = document.createElement("div");
+        newNotification.textContent = message;
+        notifications.appendChild(newNotification);
+
+        // Optionally fade out the notification after a short time
+        setTimeout(() => {
+          newNotification.style.opacity = 0;
+          setTimeout(() => {
+            notifications.removeChild(newNotification);
+          }, 500); // Adjust the fade-out duration
+        }, 3000); // Adjust the display time
+      }
+
+      function updateTimer(time) {
+        timerElement.textContent = time;
+      }
+
+      function updateScore() {
+        scoreElement.textContent = score;
+      }
+
+      function setRandomTarget() {
+        const words = [
+          "apple",
+          "banana",
+          "cherry",
+          "date",
+          "elderberry",
+          "fig",
+        ];
+        targetText = words[Math.floor(Math.random() * words.length)];
+        targetElement.textContent = targetText;
+        inputElement.value = "";
+      }
+
+      const socket = io("http://localhost:3000");
+
+      socket.on("connect", () => {
+        console.log("Socket.IO connected!");
+        gameActive = false;
+      });
+
+      function findWinners(data) {
+        let maxScore = 0;
+        const winners = [];
+        for (const roomName in data) {
+          for (const playerName in data[roomName]) {
+            const score = data[roomName][playerName];
+            if (score > maxScore) {
+              maxScore = score;
+              winners = [playerName];
+            } else if (score === maxScore) {
+              winners.push(playerName);
+            }
+          }
+        }
+        return winners;
+      }
+
+              // Function to make AJAX request to fetch console log data
+              function fetchConsoleLogData() {
+            fetch('/console-log-data') // Make a GET request to the server route
+                .then(response => response.text()) // Parse response as text
+                .then(data => {
+                    // Display console log data on the webpage
+                    const consoleLogContainer = document.getElementById('console-log-container');
+                    consoleLogContainer.textContent = data;
+                })
+                .catch(error => {
+                    console.error('Error fetching console log data:', error);
+                });
+        }
+
+        // Call fetchConsoleLogData function when the page loads
+        window.addEventListener('load', fetchConsoleLogData);
+
+
+      socket.on('scoreUpdate', (data) => {
+    console.log("Score update received:", data);
+    consoleLogData = `Player ${data.playerName} scored ${data.newScore}`;
+
+    const roomName = Object.keys(socket.rooms)[1]; // Get the room name
+
+    // Create and save the new score in MongoDB
+    const newScore = new Score({
+        playerName: data.playerName,
+        score: data.newScore,
+        roomName: roomName
+    });
+
+    newScore.save()
+        .then(() => {
+            io.emit('updateScoreData', scoreUpdateData);
+            io.to(roomName).emit('updateScores', getAllPlayerScores(roomName)); 
+        })
+        .catch(err => console.error('Error saving score:', err)); 
+});
+
+
+
+// Function to fetch the latest score update data from the server
+async function fetchScoreUpdateData() {
+    try {
+        const response = await fetch('/console-log-data');
+        const data = await response.text();
+        updateScoresDisplay(data);
+    } catch (error) {
+        console.error('Error fetching score update data:', error);
+    }
+}
+
+      function updateScoresDisplay(data) {
+        const scoresContainer = document.getElementById("scores-container");
+        scoresContainer.innerHTML = ''; // Clear existing scores
+        scoresContainer.textContent = data;
+
+        setInterval(fetchScoreUpdateData, 3000);
+
+
+        // Iterate through each room
+        for (const roomName in data) {
+          const roomScores = data[roomName];
+
+          // Create a container element for each room's scores
+          const roomScoresDiv = document.createElement("div");
+          roomScoresDiv.classList.add("room-scores"); // Add a class for styling if you want
+
+          const roomHeading = document.createElement("h2");
+          roomHeading.textContent = `Scores for Room: ${roomName}`;
+          roomScoresDiv.appendChild(roomHeading);
+
+          // Iterate through players and scores within a room
+          for (const playerName in roomScores) {
+            const scoreParagraph = document.createElement("p");
+            scoreParagraph.textContent = `${playerName}: ${roomScores[playerName]}`;
+            roomScoresDiv.appendChild(scoreParagraph);
+          }
+
+          scoresContainer.appendChild(roomScoresDiv);
+        }
+      }
+
+      inputElement.addEventListener("input", () => {
+        if (gameActive) {
+          if (inputElement.value === targetText) {
+            score++;
+            updateScore();
+            // correctSound.play();
+            setRandomTarget();
+
+            socket.on("roomJoined", (newRoomName) => {
+              roomName = newRoomName;
+              console.log(`Joined room: ${roomName}`);
+              socket.emit("scoreUpdate", {
+                playerName: playerName,
+                newScore: score,
+                roomName: roomName,
+              });
+            });
+
+            socket.emit("scoreUpdate", {
+              playerName: playerName,
+              newScore: score,
+            });
+          } else {
+            console.log("no data available");
+          }
+        }
+      });
+
+      startButton.addEventListener("click", startGame);
+      restartButton.addEventListener("click", startGame);
+    </script>
+  </body>
+</html>

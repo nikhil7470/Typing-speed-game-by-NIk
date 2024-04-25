@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Typing Speed Game</title>
+    <style>
+        body {
+            background-color: #1E335E;
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            color: #fff;
+            margin: 0;
+            padding: 0;
+        }
+        h1 {
+            font-size: 36px;
+            margin-top: 20px;
+        }
+        #game-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 80vh;
+        }
+        #target {
+            font-size: 36px;
+            margin-top: 20px;
+        }
+        #timer {
+            font-size: 28px;
+            margin: 20px 0;
+        }
+        #score {
+            font-size: 28px;
+            margin: 20px 0;
+        }
+        #message {
+            font-size: 36px;
+        }
+        #input {
+            font-size: 24px;
+            padding: 15px;
+            margin: 20px;
+            border: 2px solid #fff;
+            border-radius: 10px;
+            background-color: #1E335E;
+            color: #fff;
+        }
+        #startButton, #restartButton {
+            font-size: 24px;
+            padding: 15px 30px;
+            margin: 20px 0;
+            background-color: #FF5733;
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        #startButton:hover, #restartButton:hover {
+            background-color: #FF7F3D;
+        }
+    </style>
+</head>
+<body>
+    <h1>Typing Speed Game</h1>
+    <div id="game-container">
+        <div id="particles-js"></div>
+        <div id="target">Type this text: <span></span></div>
+        <input type="text" id="input" autofocus>
+        <div id="timer">Time: <span></span></div>
+        <div id="score">Score: <span>0</span></div>
+        <div id="message"></div>
+        <button id="startButton">Start Game</button>
+        <button id="restartButton" style="display: none;">Restart Game</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/particles.js/2.0.0/particles.min.js"></script>
+    <script>
+        const socket = io('http://localhost:3000'); // Connect to your server
+      </script>
+      
+    <audio id="correctSound" src="correct.mp3"></audio>
+    <audio id="incorrectSound" src="incorrect.mp3"></audio>
+    <script>
+        particlesJS("particles-js", {
+            particles: {
+                number: { value: 80, density: { enable: true, value_area: 800 } },
+                color: { value: "#ffffff" },
+                shape: { type: "circle" },
+                opacity: { value: 0.5, random: false },
+                size: { value: 3, random: true },
+                move: { enable: true, speed: 2, direction: "top", random: false, straight: true, out_mode: "out" },
+                line_linked: { enable: false },
+            },
+            interactivity: {
+                detect_on: "canvas",
+                events: {
+                    onhover: { enable: true, mode: "repulse" },
+                },
+            },
+        });
+
+        const correctSound = document.getElementById("correctSound");
+        const incorrectSound = document.getElementById("incorrectSound");
+
+        let targetText = "";
+        let timer;
+        let timeLimit = 30;
+        let score = 0;
+        let gameActive = false;
+
+        const targetElement = document.querySelector("#target span");
+        const inputElement = document.getElementById("input");
+        const timerElement = document.querySelector("#timer span");
+        const scoreElement = document.querySelector("#score span");
+        const messageElement = document.getElementById("message");
+        const startButton = document.getElementById("startButton");
+        const restartButton = document.getElementById("restartButton");
+
+        function startGame() {
+            if (!gameActive) {
+                gameActive = true;
+                startButton.disabled = true;
+                restartButton.style.display = "none";
+                score = 0;
+                updateScore();
+                startTimer();
+                messageElement.textContent = "";
+                setRandomTarget();
+            }
+        }
+
+        function endGame() {
+            gameActive = false;
+            startButton.disabled = false;
+            restartButton.style.display = "block";
+            clearTimeout(timer);
+            messageElement.textContent = `Game Over! Your final score is ${score}`;
+        }
+
+        function startTimer() {
+            let time = timeLimit;
+            updateTimer(time);
+            timer = setInterval(() => {
+                time--;
+                updateTimer(time);
+                if (time === 0) {
+                    endGame();
+                }
+            }, 1000);
+        }
+
+        function updateTimer(time) {
+            timerElement.textContent = time;
+        }
+
+        function updateScore() {
+            scoreElement.textContent = score;
+        }
+
+        function setRandomTarget() {
+            const words = ["apple", "banana", "cherry", "date", "elderberry", "fig"];
+            targetText = words[Math.floor(Math.random() * words.length)];
+            targetElement.textContent = targetText;
+            inputElement.value = "";
+        }
+
+        inputElement.addEventListener("input", () => {
+            if (gameActive) {
+                if (inputElement.value === targetText) {
+                    score++;
+                    updateScore();
+                    correctSound.play();
+                    setRandomTarget();
+                } else {
+                    incorrectSound.play();
+                }
+            }
+        });
+
+        startButton.addEventListener("click", startGame);
+        restartButton.addEventListener("click", startGame);
+    </script>
+</body>
+</html>
